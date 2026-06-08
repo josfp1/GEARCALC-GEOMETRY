@@ -1,16 +1,732 @@
 <!DOCTYPE html>
 <html lang="es">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#18181b" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="GearCalc" />
-    <title>Gear Calc — Desarrollos de Bicicleta</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/main.jsx"></script>
-  </body>
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <meta name="theme-color" content="#18181b"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-title" content="GearCalc"/>
+  <title>Gear Calc — Desarrollos de Bicicleta</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{background:#ffffff;}
+    ::-webkit-scrollbar{width:5px;}
+    ::-webkit-scrollbar-track{background:#f4f4f5;}
+    ::-webkit-scrollbar-thumb{background:#d4d4d8;border-radius:3px;}
+    select,input{outline:none;}
+    select option{background:#ffffff;}
+    .gear-row:hover{background:#f0f0f0 !important;}
+    .gear-row.hl{background:#e4e4e7 !important;border-left:3px solid #18181b !important;}
+    .toggle-btn{cursor:pointer;padding:5px 12px;border-radius:5px;font-size:11px;
+      border:1px solid #e4e4e7;background:transparent;color:#71717a;
+      transition:all 0.2s;font-family:inherit;}
+    .toggle-btn.on{background:#18181b;border-color:#18181b;color:#ffffff;}
+    input[type=range]{-webkit-appearance:none;width:100%;height:4px;border-radius:2px;background:#d4d4d8;}
+    input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;
+      border-radius:50%;background:#18181b;cursor:pointer;border:3px solid #fff;box-shadow:0 1px 4px #0003;}
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;}
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useMemo } = React;
+
+const WHEEL_SIZES = [
+  {label:'700c (29")',diameter:622},{label:'27.5" (650b)',diameter:584},
+  {label:'26"',diameter:559},{label:'24"',diameter:507},{label:'20"',diameter:406},
+];
+const TIRE_WIDTHS = [23,25,28,32,34,35,38,40,45,50,2.1,2.2,2.35,2.4];
+const CATS = ["Road","Gravel","MTB"];
+
+const CHAINRING_PRESETS = [
+  {cat:"Road",  name:"Red AXS 2x (50-37)",        teeth:[50,37]},
+  {cat:"Road",  name:"Red/Force AXS 2x (48-35)",  teeth:[48,35]},
+  {cat:"Road",  name:"Force/Rival AXS 2x (46-33)",teeth:[46,33]},
+  {cat:"Gravel",name:"XPLR 1x (36T)",teeth:[36]},{cat:"Gravel",name:"XPLR 1x (38T)",teeth:[38]},
+  {cat:"Gravel",name:"XPLR 1x (40T)",teeth:[40]},{cat:"Gravel",name:"XPLR 1x (42T)",teeth:[42]},
+  {cat:"Gravel",name:"XPLR 1x (44T)",teeth:[44]},{cat:"Gravel",name:"XPLR 1x (46T)",teeth:[46]},
+  {cat:"Gravel",name:"XPLR 1x (48T)",teeth:[48]},{cat:"Gravel",name:"XPLR 1x (50T)",teeth:[50]},
+  {cat:"MTB",name:"Eagle 1x (30T)",teeth:[30]},{cat:"MTB",name:"Eagle 1x (32T)",teeth:[32]},
+  {cat:"MTB",name:"Eagle 1x (34T)",teeth:[34]},{cat:"MTB",name:"Eagle 1x (36T)",teeth:[36]},
+  {cat:"MTB",name:"Eagle 1x (38T)",teeth:[38]},{cat:"MTB",name:"Eagle 1x (40T)",teeth:[40]},
+];
+const CASSETTE_PRESETS = [
+  {cat:"Road",  name:"Red AXS 12v 10-28",        teeth:[10,11,12,13,14,15,17,19,21,24,26,28]},
+  {cat:"Road",  name:"Red AXS 12v 10-30",        teeth:[10,11,12,13,14,15,17,19,22,25,28,30]},
+  {cat:"Road",  name:"Red/Force AXS 12v 10-33",  teeth:[10,11,12,13,14,15,17,19,22,25,28,33]},
+  {cat:"Road",  name:"Force/Rival AXS 12v 10-36",teeth:[10,11,12,13,15,17,19,21,24,28,32,36]},
+  {cat:"Gravel",name:"XPLR 12v 10-44",teeth:[10,11,12,13,14,16,18,21,24,28,35,44]},
+  {cat:"Gravel",name:"XPLR 13v 10-46",teeth:[10,11,12,13,14,15,17,19,22,25,28,35,46]},
+  {cat:"MTB",   name:"Eagle 12v 10-50",teeth:[10,12,14,16,18,21,24,28,32,36,42,50]},
+  {cat:"MTB",   name:"Eagle 12v 10-52",teeth:[10,12,14,16,18,21,24,28,32,36,42,52]},
+];
+
+function calcTirePressure(w,kg,tubeless) {
+  if(!kg||kg<40) return null;
+  let type,kF,kR;
+  if(w<=37){type="road";kF=1.663*Math.pow(34/w,0.90);kR=1.157*Math.pow(34/w,0.90);}
+  else if(w<=60){type="gravel";kF=1.028*Math.pow(40/w,0.85);kR=0.715*Math.pow(40/w,0.85);}
+  else return null;
+  const fTL=Math.round(kg*0.40*kF),rTL=Math.round(kg*0.60*kR);
+  const cf=type==="road"?1.18:1.14;
+  const fC=Math.round(fTL*cf),rC=Math.round(rTL*cf);
+  const front=tubeless?fTL:fC,rear=tubeless?rTL:rC;
+  return{type,front:{psi:front,bar:(front*0.0689476).toFixed(1)},
+    rear:{psi:rear,bar:(rear*0.0689476).toFixed(1)},
+    frontCleat:fC,rearCleat:rC,frontTubeless:fTL,rearTubeless:rTL};
+}
+
+function calcDev(cr,sp,diam,tw){return(cr/sp)*Math.PI*(diam+tw*2)/1000;}
+
+// ── Shared style helpers ──────────────────────────────────────────────────────
+const sel={width:"100%",background:"#ffffff",border:"1px solid #e4e4e7",
+  borderRadius:6,color:"#18181b",padding:"8px 10px",fontSize:12,fontFamily:"inherit",cursor:"pointer"};
+const inp={width:"100%",background:"#ffffff",border:"1px solid #e4e4e7",
+  borderRadius:6,color:"#18181b",padding:"8px 10px",fontSize:12,fontFamily:"inherit"};
+const catBtn=(active)=>({flex:1,padding:"6px 0",
+  border:`1px solid ${active?"#18181b":"#e4e4e7"}`,
+  background:active?"#18181b":"transparent",color:active?"#ffffff":"#71717a",
+  borderRadius:5,fontSize:11,cursor:"pointer",fontFamily:"inherit",
+  fontWeight:active?600:400,transition:"all 0.15s"});
+
+const Label=({children,style={}})=>(
+  <div style={{fontSize:10,color:"#a1a1aa",letterSpacing:2,marginBottom:8,
+    textTransform:"uppercase",fontFamily:"'Space Grotesk',sans-serif",fontWeight:600,...style}}>{children}</div>
+);
+const StatRow=({label,value,accent=false})=>(
+  <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
+    <span style={{fontSize:11,color:"#71717a"}}>{label}</span>
+    <span style={{fontSize:11,color:accent?"#18181b":"#18181b",fontWeight:accent?700:600}}>{value}</span>
+  </div>
+);
+const Card=({children,style={}})=>(
+  <div style={{background:"#f9f9f9",borderRadius:10,border:"1px solid #e4e4e7",padding:16,...style}}>{children}</div>
+);
+const ToggleBtn=({active,onClick,children})=>(
+  <button onClick={onClick} className={`toggle-btn${active?" on":""}`}>{children}</button>
+);
+
+// ── Slider + input numérico combinados ───────────────────────────────────────
+function SliderInput({label, value, min, max, unit, onChange}) {
+  const [inputVal, setInputVal] = useState(String(value));
+
+  const handleSlider = (e) => {
+    const v = +e.target.value;
+    setInputVal(String(v));
+    onChange(v);
+  };
+  const handleInput = (e) => {
+    setInputVal(e.target.value);
+    const v = parseInt(e.target.value);
+    if(!isNaN(v) && v >= min && v <= max) onChange(v);
+  };
+  const handleBlur = () => {
+    const v = parseInt(inputVal);
+    if(isNaN(v) || v < min) { onChange(min); setInputVal(String(min)); }
+    else if(v > max) { onChange(max); setInputVal(String(max)); }
+    else { onChange(v); setInputVal(String(v)); }
+  };
+
+  // Keep input in sync if value changes externally
+  React.useEffect(() => { setInputVal(String(value)); }, [value]);
+
+  return (
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+        <Label style={{marginBottom:0}}>{label}</Label>
+        <div style={{display:"flex",alignItems:"center",gap:6}}>
+          <input
+            type="number" value={inputVal}
+            onChange={handleInput} onBlur={handleBlur}
+            style={{width:58,textAlign:"center",fontWeight:700,fontSize:14,
+              background:"#ffffff",border:"1px solid #e4e4e7",borderRadius:6,
+              padding:"4px 6px",fontFamily:"inherit",color:"#18181b"}}
+          />
+          <span style={{fontSize:11,color:"#71717a"}}>{unit}</span>
+        </div>
+      </div>
+      <input type="range" min={min} max={max} value={value} onChange={handleSlider}
+        style={{marginBottom:4}}/>
+      <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#a1a1aa"}}>
+        <span>{min}</span><span>{max}</span>
+      </div>
+    </div>
+  );
+}
+
+// ── GainBar ───────────────────────────────────────────────────────────────────
+function GainBar({value,max,color="#18181b"}){
+  const pct=Math.min((value/max)*100,100);
+  return(
+    <div style={{background:"#e4e4e7",borderRadius:3,height:5,overflow:"hidden"}}>
+      <div style={{width:`${pct}%`,height:"100%",background:color,borderRadius:3,transition:"width 0.3s",opacity:0.7+pct/333}}/>
+    </div>
+  );
+}
+
+// ── Config panel (reutilizable para A y B) ────────────────────────────────────
+function ConfigPanel({id, accent, showPressure, setShowPressure, tubeless, setTubeless,
+  riderWeight, setRiderWeight, cadence, setCadence,
+  wheelIdx, setWheelIdx, tireWidth, setTireWidth, customTire, setCustomTire, tireInput, setTireInput,
+  crCat, setCrCat, crIdx, setCrIdx, csCat, setCsCat, csIdx, setCsIdx,
+  customCR, setCustomCR, customCS, setCustomCS, useCustomCR, setUseCustomCR, useCustomCS, setUseCustomCS,
+  chainrings, sprockets, crColors, tireWidthMM, pressure, isCompare}) {
+
+  const wheel = WHEEL_SIZES[wheelIdx];
+  const crOptions = CHAINRING_PRESETS.filter(p=>p.cat===crCat);
+  const safecrIdx = Math.min(crIdx, crOptions.length-1);
+  const csOptions = CASSETTE_PRESETS.filter(p=>p.cat===csCat);
+  const safeCsIdx = Math.min(csIdx, csOptions.length-1);
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      {isCompare && (
+        <div style={{padding:"6px 12px",background:accent+"15",borderRadius:6,
+          border:`1px solid ${accent}33`,fontSize:11,color:accent,fontWeight:600,
+          fontFamily:"'Space Grotesk',sans-serif",letterSpacing:1}}>
+          {id==="A"?"CONFIGURACIÓN A":"CONFIGURACIÓN B"}
+        </div>
+      )}
+
+      {/* Rueda */}
+      <Card>
+        <Label>Tamaño de rueda</Label>
+        <select value={wheelIdx} onChange={e=>setWheelIdx(+e.target.value)} style={sel}>
+          {WHEEL_SIZES.map((w,i)=><option key={i} value={i}>{w.label}</option>)}
+        </select>
+      </Card>
+
+      {/* Cubierta */}
+      <Card>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+          <Label style={{marginBottom:0}}>Ancho de cubierta</Label>
+          <ToggleBtn active={customTire} onClick={()=>setCustomTire(!customTire)}>
+            {customTire?"custom":"preset"}
+          </ToggleBtn>
+        </div>
+        {customTire?(
+          <div style={{display:"flex",gap:8,alignItems:"center"}}>
+            <input type="number" value={tireInput} onChange={e=>setTireInput(e.target.value)}
+              style={{...inp,width:90}} placeholder="mm"/>
+            <span style={{fontSize:11,color:"#52525b"}}>mm</span>
+          </div>
+        ):(
+          <select value={tireWidth} onChange={e=>setTireWidth(+e.target.value)} style={sel}>
+            {TIRE_WIDTHS.map(w=><option key={w} value={w}>{w>10?`${w}mm`:`${w}" (${Math.round(w*25.4)}mm)`}</option>)}
+          </select>
+        )}
+        <div style={{fontSize:10,color:"#a1a1aa",marginTop:6}}>
+          Diámetro total: {Math.round(wheel.diameter+tireWidthMM*2)}mm
+        </div>
+
+        {/* Presión — solo en panel A o en modo simple */}
+        {(id==="A"||!isCompare) && (
+          <div style={{marginTop:14,borderTop:"1px solid #e4e4e7",paddingTop:14}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+              <Label style={{marginBottom:0}}>Presión de cubierta</Label>
+              <ToggleBtn active={showPressure} onClick={()=>setShowPressure(!showPressure)}>
+                {showPressure?"activo":"ver"}
+              </ToggleBtn>
+            </div>
+            {showPressure&&(<>
+              <div style={{display:"flex",gap:4,marginBottom:12}}>
+                {[["tl","Tubeless",true],["cl","Con cámara",false]].map(([k,l,v])=>(
+                  <button key={k} onClick={()=>setTubeless(v)} style={{flex:1,padding:"6px 0",
+                    border:`1px solid ${tubeless===v?"#18181b":"#e4e4e7"}`,
+                    background:tubeless===v?"#18181b":"transparent",
+                    color:tubeless===v?"#ffffff":"#71717a",
+                    borderRadius:5,fontSize:11,cursor:"pointer",fontFamily:"inherit",
+                    fontWeight:tubeless===v?600:400,transition:"all 0.15s"}}>{l}</button>
+                ))}
+              </div>
+              <SliderInput label="Peso ciclista" value={riderWeight} min={45} max={120} unit="kg" onChange={setRiderWeight}/>
+              {pressure?(
+                <div style={{marginTop:12,borderRadius:8,border:"1px solid #d4d4d8",overflow:"hidden",background:"#f9f9f9"}}>
+                  <div style={{padding:"7px 14px",borderBottom:"1px solid #e4e4e7",
+                    display:"flex",justifyContent:"space-between",alignItems:"center",background:"#f4f4f5"}}>
+                    <span style={{fontSize:9,color:"#18181b",letterSpacing:2,
+                      fontFamily:"'Space Grotesk',sans-serif",fontWeight:700}}>
+                      {pressure.type==="road"?"CARRETERA":"GRAVEL"} — {tubeless?"TUBELESS":"CON CÁMARA"}
+                    </span>
+                    <span style={{fontSize:9,color:"#a1a1aa"}}>{tireWidthMM}mm · {riderWeight}kg</span>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr"}}>
+                    {[
+                      {label:"DELANTERA",icon:"△",data:pressure.front,cleat:pressure.frontCleat,tless:pressure.frontTubeless},
+                      {label:"TRASERA",  icon:"▽",data:pressure.rear, cleat:pressure.rearCleat, tless:pressure.rearTubeless},
+                    ].map(({label,icon,data,cleat,tless},idx)=>(
+                      <div key={idx} style={{padding:"12px 14px",borderRight:idx===0?"1px solid #e4e4e7":"none"}}>
+                        <div style={{fontSize:9,color:"#a1a1aa",letterSpacing:1,marginBottom:6}}>{icon} {label}</div>
+                        <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:4}}>
+                          <span style={{fontSize:26,fontWeight:700,color:"#18181b",lineHeight:1}}>{data.psi}</span>
+                          <span style={{fontSize:11,color:"#a1a1aa"}}>PSI</span>
+                        </div>
+                        <div style={{fontSize:15,color:"#52525b",fontWeight:600,marginBottom:8}}>
+                          {data.bar}<span style={{fontSize:10,color:"#a1a1aa",fontWeight:400}}> bar</span>
+                        </div>
+                        <div style={{borderTop:"1px solid #e4e4e7",paddingTop:6}}>
+                          <div style={{fontSize:9,display:"flex",justifyContent:"space-between",marginBottom:2}}>
+                            <span style={{color:"#a1a1aa"}}>tubeless</span>
+                            <span style={{color:"#18181b",fontWeight:600}}>{tless} PSI</span>
+                          </div>
+                          <div style={{fontSize:9,display:"flex",justifyContent:"space-between"}}>
+                            <span style={{color:"#a1a1aa"}}>cámara</span>
+                            <span style={{color:"#52525b",fontWeight:600}}>{cleat} PSI</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{padding:"6px 14px",borderTop:"1px solid #e4e4e7",fontSize:9,color:"#a1a1aa"}}>
+                    Delantera 40% · Trasera 60% · Orientativo, ajusta según sensaciones
+                  </div>
+                </div>
+              ):(
+                <div style={{fontSize:11,color:"#a1a1aa",fontStyle:"italic",marginTop:8}}>
+                  Disponible para 23–35mm (carretera) y 38–55mm (gravel)
+                </div>
+              )}
+            </>)}
+          </div>
+        )}
+      </Card>
+
+      {/* Cadencia */}
+      <Card>
+        <SliderInput label="Cadencia" value={cadence} min={40} max={140} unit="rpm" onChange={setCadence}/>
+      </Card>
+
+      {/* Platos */}
+      <Card>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+          <Label style={{marginBottom:0}}>Platos · SRAM</Label>
+          <ToggleBtn active={useCustomCR} onClick={()=>setUseCustomCR(!useCustomCR)}>
+            {useCustomCR?"custom":"preset"}
+          </ToggleBtn>
+        </div>
+        {useCustomCR?(
+          <input value={customCR} onChange={e=>setCustomCR(e.target.value)} placeholder="ej: 50, 34" style={inp}/>
+        ):(<>
+          <div style={{display:"flex",gap:4,marginBottom:8}}>
+            {CATS.map(c=><button key={c} onClick={()=>{setCrCat(c);setCrIdx(0);}} style={catBtn(crCat===c)}>{c}</button>)}
+          </div>
+          <select value={safecrIdx} onChange={e=>setCrIdx(+e.target.value)} style={sel}>
+            {crOptions.map((p,i)=><option key={i} value={i}>{p.name}</option>)}
+          </select>
+        </>)}
+        <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:10}}>
+          {chainrings.map((cr,i)=>(
+            <span key={i} style={{background:`${crColors[cr]}18`,border:`1px solid ${crColors[cr]}55`,
+              color:crColors[cr],borderRadius:4,padding:"2px 9px",fontSize:11,fontWeight:600}}>{cr}T</span>
+          ))}
+        </div>
+      </Card>
+
+      {/* Cassette */}
+      <Card>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+          <Label style={{marginBottom:0}}>Cassette · SRAM</Label>
+          <ToggleBtn active={useCustomCS} onClick={()=>setUseCustomCS(!useCustomCS)}>
+            {useCustomCS?"custom":"preset"}
+          </ToggleBtn>
+        </div>
+        {useCustomCS?(
+          <input value={customCS} onChange={e=>setCustomCS(e.target.value)} placeholder="ej: 11,13,15..." style={inp}/>
+        ):(<>
+          <div style={{display:"flex",gap:4,marginBottom:8}}>
+            {CATS.map(c=><button key={c} onClick={()=>{setCsCat(c);setCsIdx(0);}} style={catBtn(csCat===c)}>{c}</button>)}
+          </div>
+          <select value={safeCsIdx} onChange={e=>setCsIdx(+e.target.value)} style={sel}>
+            {csOptions.map((p,i)=><option key={i} value={i}>{p.name}</option>)}
+          </select>
+        </>)}
+        <div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:10}}>
+          {sprockets.map((sp,i)=>(
+            <span key={i} style={{background:"#f4f4f5",border:"1px solid #e4e4e7",
+              borderRadius:4,padding:"2px 7px",fontSize:10,color:"#52525b"}}>{sp}T</span>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ── Gear table column ─────────────────────────────────────────────────────────
+function GearTable({gears, unit, cadence, globalMin, globalMax, crColors, accent, label}) {
+  const [hl, setHl] = useState(null);
+  const range = globalMax - globalMin;
+  if(gears.length===0) return(
+    <div style={{textAlign:"center",padding:"40px 10px",color:"#a1a1aa",fontSize:12}}>Sin datos</div>
+  );
+  return (
+    <div>
+      {label && (
+        <div style={{padding:"6px 12px",background:accent+"15",borderRadius:6,
+          border:`1px solid ${accent}33`,fontSize:10,color:accent,fontWeight:700,
+          fontFamily:"'Space Grotesk',sans-serif",letterSpacing:1,marginBottom:8}}>{label}</div>
+      )}
+      {/* Header */}
+      <div style={{display:"grid",gridTemplateColumns:"44px 44px 1fr 80px",
+        padding:"8px 10px",background:"#f4f4f5",borderRadius:"8px 8px 0 0",
+        border:"1px solid #e4e4e7",borderBottom:"none"}}>
+        {["Plato","Piñón","Desarrollo",unit==="kmh"?`km/h`:` m/v`].map((h,i)=>(
+          <div key={i} style={{fontSize:9,color:"#a1a1aa",letterSpacing:1,
+            fontFamily:"'Space Grotesk',sans-serif",fontWeight:600}}>{h}</div>
+        ))}
+      </div>
+      <div style={{border:"1px solid #e4e4e7",borderRadius:"0 0 8px 8px",overflow:"hidden"}}>
+        {gears.map((g,i)=>{
+          const isHl = hl && hl.cr===g.cr && hl.sp===g.sp;
+          const pct = range>0?(g.dev-globalMin)/range:0.5;
+          return(
+            <div key={i} className={`gear-row${isHl?" hl":""}`}
+              onMouseEnter={()=>setHl(g)} onMouseLeave={()=>setHl(null)}
+              style={{display:"grid",gridTemplateColumns:"44px 44px 1fr 80px",
+                padding:"6px 10px",borderBottom:"1px solid #e4e4e722",
+                alignItems:"center",transition:"background 0.1s",
+                borderLeft:isHl?undefined:"3px solid transparent",
+                background:i%2===0?"#ffffff":"#fafafa"}}>
+              <span style={{color:crColors[g.cr],fontWeight:700,fontSize:12}}>{g.cr}T</span>
+              <span style={{color:"#71717a",fontSize:12}}>{g.sp}T</span>
+              <div style={{paddingRight:8}}>
+                <div style={{fontSize:11,color:"#18181b",fontWeight:600,marginBottom:3}}>
+                  {unit==="kmh"?`${g.speed.toFixed(1)}`:`${g.dev.toFixed(2)}`}
+                </div>
+                <GainBar value={g.dev} max={globalMax} color={accent}/>
+              </div>
+              <span style={{fontSize:9,textAlign:"right",
+                color:pct<0.25?"#a1a1aa":pct>0.75?"#18181b":"#71717a",
+                fontWeight:pct>0.75?700:400}}>
+                {pct<0.25?"BAJO":pct>0.75?"ALTO":pct<0.5?"MED·B":"MED·A"}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      {/* Mini stats */}
+      <div style={{marginTop:10,display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+        {[
+          ["Mín",`${Math.min(...gears.map(g=>g.dev)).toFixed(2)} m`],
+          ["Máx",`${Math.max(...gears.map(g=>g.dev)).toFixed(2)} m`],
+          ["Vel. mín",`${(Math.min(...gears.map(g=>g.speed))).toFixed(1)} km/h`],
+          ["Vel. máx",`${(Math.max(...gears.map(g=>g.speed))).toFixed(1)} km/h`],
+        ].map(([l,v])=>(
+          <div key={l} style={{background:"#f4f4f5",borderRadius:6,padding:"6px 10px"}}>
+            <div style={{fontSize:9,color:"#a1a1aa",marginBottom:2}}>{l}</div>
+            <div style={{fontSize:12,color:"#18181b",fontWeight:600}}>{v}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Range visualization (both configs) ───────────────────────────────────────
+function RangeViz({gearsA, gearsB, compareMode, accentA, accentB}) {
+  const [hl, setHl] = useState(null);
+  const all = compareMode ? [...gearsA,...gearsB] : gearsA;
+  if(!all.length) return null;
+  const globalMin = Math.min(...all.map(g=>g.dev));
+  const globalMax = Math.max(...all.map(g=>g.dev));
+  const range = globalMax-globalMin;
+
+  const crListA = [...new Set(gearsA.map(g=>g.cr))];
+  const crListB = compareMode ? [...new Set(gearsB.map(g=>g.cr))] : [];
+
+  const renderRow = (cr, gears, accent, rowLabel) => (
+    <div key={`${accent}-${cr}`} style={{marginBottom:12}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:5}}>
+        <div style={{width:8,height:8,borderRadius:"50%",background:accent,flexShrink:0}}/>
+        <span style={{fontSize:11,color:accent,fontWeight:600}}>{rowLabel} {cr}T</span>
+      </div>
+      <div style={{position:"relative",height:30,background:"#f4f4f5",borderRadius:5,border:"1px solid #e4e4e7"}}>
+        {gears.filter(g=>g.cr===cr).map((g,i)=>{
+          const left=range>0?((g.dev-globalMin)/range)*100:50;
+          const isAct=hl&&hl.cr===g.cr&&hl.sp===g.sp&&hl.acc===accent;
+          return(
+            <div key={i}
+              onMouseEnter={()=>setHl({...g,acc:accent})} onMouseLeave={()=>setHl(null)}
+              onTouchStart={()=>setHl({...g,acc:accent})} onTouchEnd={()=>setTimeout(()=>setHl(null),1500)}
+              style={{position:"absolute",left:`${left}%`,top:"50%",
+                transform:"translate(-50%,-50%)",
+                width:isAct?18:11,height:isAct?18:11,borderRadius:"50%",
+                background:isAct?accent:`${accent}66`,
+                border:isAct?`2px solid ${accent}`:"1px solid #fff",
+                cursor:"pointer",transition:"all 0.15s",zIndex:isAct?10:1}}/>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  return(
+    <Card>
+      <Label>Visualización de rango</Label>
+      {crListA.map(cr=>renderRow(cr,gearsA,accentA,compareMode?"A ·":""))}
+      {compareMode && crListB.map(cr=>renderRow(cr,gearsB,accentB,"B ·"))}
+      {hl&&(
+        <div style={{marginTop:4,background:"#f4f4f5",borderRadius:6,
+          padding:"7px 12px",border:"1px solid #e4e4e7",fontSize:12,
+          display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
+          <div style={{width:8,height:8,borderRadius:"50%",background:hl.acc,flexShrink:0}}/>
+          <span style={{color:hl.acc,fontWeight:700}}>{hl.cr}T × {hl.sp}T</span>
+          <span style={{color:"#18181b",fontWeight:600}}>{hl.dev.toFixed(2)} m</span>
+          <span style={{color:"#71717a"}}>{hl.speed.toFixed(1)} km/h</span>
+        </div>
+      )}
+      <div style={{display:"flex",justifyContent:"space-between",marginTop:8}}>
+        <span style={{fontSize:10,color:"#a1a1aa"}}>{globalMin.toFixed(1)} m</span>
+        <span style={{fontSize:10,color:"#a1a1aa"}}>{globalMax.toFixed(1)} m</span>
+      </div>
+    </Card>
+  );
+}
+
+// ── useGearConfig hook ────────────────────────────────────────────────────────
+function useGearConfig(defaultCrCat="Road", defaultCsCat="Road") {
+  const [wheelIdx,setWheelIdx]     = useState(0);
+  const [tireWidth,setTireWidth]   = useState(28);
+  const [customTire,setCustomTire] = useState(false);
+  const [tireInput,setTireInput]   = useState("28");
+  const [cadence,setCadence]       = useState(90);
+  const [crCat,setCrCat]           = useState(defaultCrCat);
+  const [crIdx,setCrIdx]           = useState(0);
+  const [csCat,setCsCat]           = useState(defaultCsCat);
+  const [csIdx,setCsIdx]           = useState(0);
+  const [customCR,setCustomCR]     = useState("");
+  const [customCS,setCustomCS]     = useState("");
+  const [useCustomCR,setUseCustomCR] = useState(false);
+  const [useCustomCS,setUseCustomCS] = useState(false);
+
+  const wheel = WHEEL_SIZES[wheelIdx];
+  const tire  = customTire ? parseFloat(tireInput)||28 : tireWidth;
+  const tireWidthMM = tire>10 ? tire : tire*25.4;
+
+  const crOptions = CHAINRING_PRESETS.filter(p=>p.cat===crCat);
+  const safecrIdx = Math.min(crIdx,crOptions.length-1);
+  const csOptions = CASSETTE_PRESETS.filter(p=>p.cat===csCat);
+  const safeCsIdx = Math.min(csIdx,csOptions.length-1);
+
+  const chainrings = useMemo(()=>{
+    if(useCustomCR) return customCR.split(",").map(s=>parseInt(s.trim())).filter(n=>n>0);
+    return crOptions[safecrIdx]?.teeth||[];
+  },[useCustomCR,customCR,crOptions,safecrIdx]);
+
+  const sprockets = useMemo(()=>{
+    if(useCustomCS) return customCS.split(",").map(s=>parseInt(s.trim())).filter(n=>n>0);
+    return csOptions[safeCsIdx]?.teeth||[];
+  },[useCustomCS,customCS,csOptions,safeCsIdx]);
+
+  const gears = useMemo(()=>{
+    const r=[];
+    for(const cr of chainrings)
+      for(const sp of sprockets)
+        r.push({cr,sp,dev:calcDev(cr,sp,wheel.diameter,tireWidthMM),
+          speed:calcDev(cr,sp,wheel.diameter,tireWidthMM)*cadence*60/1000,ratio:cr/sp});
+    return r.sort((a,b)=>a.dev-b.dev);
+  },[chainrings,sprockets,wheel,tireWidthMM,cadence]);
+
+  const palette=["#18181b","#71717a","#a1a1aa","#d4d4d8","#52525b"];
+  const crList=[...new Set(chainrings)];
+  const crColors={};
+  crList.forEach((cr,i)=>{crColors[cr]=palette[i%palette.length];});
+
+  return {
+    wheelIdx,setWheelIdx,tireWidth,setTireWidth,customTire,setCustomTire,
+    tireInput,setTireInput,cadence,setCadence,crCat,setCrCat,crIdx,setCrIdx,
+    csCat,setCsCat,csIdx,setCsIdx,customCR,setCustomCR,customCS,setCustomCS,
+    useCustomCR,setUseCustomCR,useCustomCS,setUseCustomCS,
+    wheel,tireWidthMM,chainrings,sprockets,gears,crColors,crList,
+  };
+}
+
+// ── Main App ──────────────────────────────────────────────────────────────────
+function App(){
+  const [unit,setUnit]               = useState("m");
+  const [compareMode,setCompareMode] = useState(false);
+  const [showPressure,setShowPressure] = useState(false);
+  const [tubeless,setTubeless]       = useState(true);
+  const [riderWeight,setRiderWeight] = useState(70);
+
+  const A = useGearConfig("Road","Road");
+  const B = useGearConfig("MTB","MTB");
+
+  const pressureA = useMemo(()=>calcTirePressure(A.tireWidthMM,riderWeight,tubeless),[A.tireWidthMM,riderWeight,tubeless]);
+
+  const accentA = "#18181b";
+  const accentB = "#71717a";
+
+  // Global min/max across both configs for shared scale
+  const allGears = compareMode ? [...A.gears,...B.gears] : A.gears;
+  const globalMin = allGears.length ? Math.min(...allGears.map(g=>g.dev)) : 0;
+  const globalMax = allGears.length ? Math.max(...allGears.map(g=>g.dev)) : 10;
+
+  return(
+    <div style={{minHeight:"100vh",background:"#ffffff",color:"#18181b",
+      fontFamily:"'IBM Plex Mono','Courier New',monospace"}}>
+
+      {/* HEADER */}
+      <div style={{background:"#18181b",padding:"14px 20px",
+        display:"flex",alignItems:"center",gap:14,flexWrap:"wrap",rowGap:8}}>
+        <div style={{fontSize:20}}>🚴</div>
+        <div>
+          <div style={{fontFamily:"'Space Grotesk',sans-serif",fontWeight:700,fontSize:17,
+            color:"#ffffff",letterSpacing:-0.5}}>GEAR CALC</div>
+          <div style={{fontSize:9,color:"#71717a",letterSpacing:2}}>SRAM · DESARROLLOS DE BICICLETA</div>
+        </div>
+        <div style={{marginLeft:"auto",display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+          {/* Compare toggle */}
+          <button onClick={()=>setCompareMode(!compareMode)} style={{
+            padding:"5px 12px",
+            border:`1px solid ${compareMode?"#ffffff":"#3f3f46"}`,
+            background:compareMode?"#ffffff":"transparent",
+            color:compareMode?"#18181b":"#a1a1aa",
+            borderRadius:5,fontSize:11,cursor:"pointer",fontFamily:"inherit",
+            fontWeight:compareMode?700:400,transition:"all 0.15s"}}>
+            {compareMode?"⊠ Comparando":"⊞ Comparar"}
+          </button>
+          {/* Unit toggle */}
+          {[["m","m/v"],["kmh","km/h"]].map(([k,l])=>(
+            <button key={k} onClick={()=>setUnit(k)} style={{padding:"5px 12px",
+              border:`1px solid ${unit===k?"#ffffff":"#3f3f46"}`,
+              background:unit===k?"#ffffff":"transparent",
+              color:unit===k?"#18181b":"#a1a1aa",
+              borderRadius:5,fontSize:11,cursor:"pointer",fontFamily:"inherit",
+              fontWeight:unit===k?600:400,transition:"all 0.15s"}}>{l}</button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{maxWidth:compareMode?1100:960,margin:"0 auto",padding:"20px 16px",
+        display:"flex",flexDirection:"column",gap:20}}>
+
+        {/* CONFIG ROW */}
+        <div style={{display:"grid",
+          gridTemplateColumns:compareMode?"1fr 1fr":"repeat(auto-fit,minmax(280px,1fr))",
+          gap:compareMode?12:16}}>
+
+          {/* CONFIG A */}
+          <ConfigPanel id="A" accent={accentA} isCompare={compareMode}
+            showPressure={showPressure} setShowPressure={setShowPressure}
+            tubeless={tubeless} setTubeless={setTubeless}
+            riderWeight={riderWeight} setRiderWeight={setRiderWeight}
+            cadence={A.cadence} setCadence={A.setCadence}
+            wheelIdx={A.wheelIdx} setWheelIdx={A.setWheelIdx}
+            tireWidth={A.tireWidth} setTireWidth={A.setTireWidth}
+            customTire={A.customTire} setCustomTire={A.setCustomTire}
+            tireInput={A.tireInput} setTireInput={A.setTireInput}
+            crCat={A.crCat} setCrCat={A.setCrCat} crIdx={A.crIdx} setCrIdx={A.setCrIdx}
+            csCat={A.csCat} setCsCat={A.setCsCat} csIdx={A.csIdx} setCsIdx={A.setCsIdx}
+            customCR={A.customCR} setCustomCR={A.setCustomCR}
+            customCS={A.customCS} setCustomCS={A.setCustomCS}
+            useCustomCR={A.useCustomCR} setUseCustomCR={A.setUseCustomCR}
+            useCustomCS={A.useCustomCS} setUseCustomCS={A.setUseCustomCS}
+            chainrings={A.chainrings} sprockets={A.sprockets}
+            crColors={A.crColors} tireWidthMM={A.tireWidthMM} pressure={pressureA}
+          />
+
+          {/* CONFIG B — solo en compare mode */}
+          {compareMode && (
+            <ConfigPanel id="B" accent={accentB} isCompare={true}
+              showPressure={false} setShowPressure={()=>{}}
+              tubeless={tubeless} setTubeless={setTubeless}
+              riderWeight={riderWeight} setRiderWeight={setRiderWeight}
+              cadence={B.cadence} setCadence={B.setCadence}
+              wheelIdx={B.wheelIdx} setWheelIdx={B.setWheelIdx}
+              tireWidth={B.tireWidth} setTireWidth={B.setTireWidth}
+              customTire={B.customTire} setCustomTire={B.setCustomTire}
+              tireInput={B.tireInput} setTireInput={B.setTireInput}
+              crCat={B.crCat} setCrCat={B.setCrCat} crIdx={B.crIdx} setCrIdx={B.setCrIdx}
+              csCat={B.csCat} setCsCat={B.setCsCat} csIdx={B.csIdx} setCsIdx={B.setCsIdx}
+              customCR={B.customCR} setCustomCR={B.setCustomCR}
+              customCS={B.customCS} setCustomCS={B.setCustomCS}
+              useCustomCR={B.useCustomCR} setUseCustomCR={B.setUseCustomCR}
+              useCustomCS={B.useCustomCS} setUseCustomCS={B.setUseCustomCS}
+              chainrings={B.chainrings} sprockets={B.sprockets}
+              crColors={B.crColors} tireWidthMM={B.tireWidthMM} pressure={null}
+            />
+          )}
+        </div>
+
+        {/* RANGO */}
+        {(A.gears.length>0||(compareMode&&B.gears.length>0)) && (
+          <RangeViz
+            gearsA={A.gears} gearsB={B.gears}
+            compareMode={compareMode} accentA={accentA} accentB={accentB}
+          />
+        )}
+
+        {/* TABLAS */}
+        {compareMode ? (
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+            <GearTable gears={A.gears} unit={unit} cadence={A.cadence}
+              globalMin={globalMin} globalMax={globalMax}
+              crColors={A.crColors} accent={accentA} label="CONFIGURACIÓN A"/>
+            <GearTable gears={B.gears} unit={unit} cadence={B.cadence}
+              globalMin={globalMin} globalMax={globalMax}
+              crColors={B.crColors} accent={accentB} label="CONFIGURACIÓN B"/>
+          </div>
+        ) : (
+          <div>
+            <div style={{fontSize:10,color:"#a1a1aa",letterSpacing:2,marginBottom:10,
+              fontFamily:"'Space Grotesk',sans-serif",fontWeight:600}}>
+              TABLA DE COMBINACIONES — {A.gears.length} marchas
+            </div>
+            <div style={{background:"#f9f9f9",borderRadius:10,border:"1px solid #e4e4e7",overflow:"hidden"}}>
+              <div style={{display:"grid",gridTemplateColumns:"55px 55px 65px 1fr 90px 72px",
+                padding:"9px 16px",borderBottom:"1px solid #e4e4e7",background:"#f4f4f5"}}>
+                {["Plato","Piñón","Ratio","Desarrollo",unit==="kmh"?`km/h @${A.cadence}`:"m/vuelta",""].map((h,i)=>(
+                  <div key={i} style={{fontSize:9,color:"#a1a1aa",letterSpacing:1,
+                    fontFamily:"'Space Grotesk',sans-serif",fontWeight:600}}>{h}</div>
+                ))}
+              </div>
+              {A.gears.map((g,i)=>{
+                const pct=globalMax-globalMin>0?(g.dev-globalMin)/(globalMax-globalMin):0.5;
+                return(
+                  <div key={i} className="gear-row"
+                    style={{display:"grid",gridTemplateColumns:"55px 55px 65px 1fr 90px 72px",
+                      padding:"7px 16px",borderBottom:"1px solid #e4e4e722",
+                      alignItems:"center",background:i%2===0?"#ffffff":"#fafafa",
+                      borderLeft:"3px solid transparent"}}>
+                    <span style={{color:A.crColors[g.cr],fontWeight:700,fontSize:13}}>{g.cr}T</span>
+                    <span style={{color:"#52525b",fontSize:13}}>{g.sp}T</span>
+                    <span style={{color:"#a1a1aa",fontSize:12}}>{g.ratio.toFixed(2)}</span>
+                    <div style={{paddingRight:12}}><GainBar value={g.dev} max={globalMax}/></div>
+                    <span style={{fontSize:13,color:"#18181b",fontWeight:600}}>
+                      {unit==="kmh"?`${g.speed.toFixed(1)} km/h`:`${g.dev.toFixed(2)} m`}
+                    </span>
+                    <span style={{fontSize:9,background:"#f4f4f5",border:"1px solid #e4e4e7",
+                      color:pct<0.25?"#a1a1aa":pct>0.75?"#18181b":"#71717a",
+                      borderRadius:3,padding:"1px 5px",letterSpacing:0.5,
+                      fontFamily:"'Space Grotesk',sans-serif",fontWeight:pct>0.75?700:400}}>
+                      {pct<0.25?"BAJO":pct>0.75?"ALTO":pct<0.5?"MED·B":"MED·A"}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {A.gears.length===0&&!compareMode&&(
+          <div style={{textAlign:"center",padding:"60px 20px",color:"#a1a1aa"}}>
+            <div style={{fontSize:34,marginBottom:12}}>⚙️</div>
+            <div style={{fontSize:13}}>Configura platos y piñones para ver los desarrollos</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
 </html>
